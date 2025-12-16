@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { GoogleGenAI, Type, Schema, LiveConnectConfig } from "@google/genai";
 import { WorkoutPlan, MealPlan } from '../types';
 
 const MODEL_NAME = "gemini-2.5-flash";
@@ -145,6 +145,14 @@ When analyzing workout history, be specific about volume, intensity, and recover
       });
   }
 
+  async startLiveSession(callbacks: any, config: LiveConnectConfig) {
+    return this.ai.live.connect({
+        model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+        callbacks,
+        config
+    });
+  }
+
   async generateExerciseVideo(exerciseName: string, instructions: string): Promise<string> {
     // Ensure the user has selected a paid API key for Veo
     if (typeof window !== 'undefined' && (window as any).aistudio) {
@@ -174,7 +182,8 @@ When analyzing workout history, be specific about volume, intensity, and recover
     }
 
     if (operation.error) {
-        throw new Error(operation.error.message || "Video generation failed");
+        const errorMessage = (operation.error as any).message || "Video generation failed";
+        throw new Error(errorMessage as string);
     }
 
     const videoUri = operation.response?.generatedVideos?.[0]?.video?.uri;

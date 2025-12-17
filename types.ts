@@ -1,4 +1,5 @@
 
+
 export enum AppView {
   DASHBOARD = 'DASHBOARD',
   WORKOUTS = 'WORKOUTS',
@@ -65,7 +66,7 @@ export interface UserProfile {
   isVerified: boolean;
   isPremium: boolean;
   fitnessLevel: 'Beginner' | 'Intermediate' | 'Advanced';
-  goal: 'Weight Loss' | 'Muscle Gain' | 'Endurance' | 'Flexibility';
+  goal: 'Weight Loss' | 'Muscle Gain' | 'Endurance' | 'Flexibility' | 'Lose Weight' | 'Build Muscle' | 'Get Toned' | 'Improve Health';
   stats: {
     age: number;
     weight: number; // kg

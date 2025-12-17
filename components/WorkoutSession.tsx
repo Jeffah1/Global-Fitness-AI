@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { WorkoutPlan, WorkoutLog } from '../types';
-import { Play, Pause, Square, CheckCircle, Clock, ChevronRight, Save, Video, Loader2 } from 'lucide-react';
+import { Play, Pause, Square, CheckCircle, Clock, ChevronRight, Save, Video, Loader2, AlertCircle, Key } from 'lucide-react';
 import { useGlobalContext } from '../context/GlobalContext';
 import { geminiService } from '../services/gemini';
+import { VideoPlayer } from './ui/VideoPlayer';
 
 interface WorkoutSessionProps {
     plan: WorkoutPlan;
@@ -21,6 +22,8 @@ export const WorkoutSession: React.FC<WorkoutSessionProps> = ({ plan, onComplete
     // Video generation state
     const [videoUrl, setVideoUrl] = useState<string | null>(null);
     const [isVideoLoading, setIsVideoLoading] = useState(false);
+    const [videoError, setVideoError] = useState<string | null>(null);
+    const [loadingText, setLoadingText] = useState("Initializing AI...");
     
     const [logs, setLogs] = useState<any[]>(
         plan.exercises.map(ex => ({ 
@@ -36,7 +39,29 @@ export const WorkoutSession: React.FC<WorkoutSessionProps> = ({ plan, onComplete
     useEffect(() => {
         setVideoUrl(null);
         setIsVideoLoading(false);
+        setVideoError(null);
     }, [currentExerciseIndex]);
+
+    // Cycling loading text to improve perceived speed
+    useEffect(() => {
+        let textInterval: any;
+        if (isVideoLoading) {
+            const messages = [
+                "Analyzing movement mechanics...",
+                "Scripting 3D scene...",
+                "Rendering lighting...",
+                "Generating smooth motion...",
+                "Polishing final frames..."
+            ];
+            let i = 0;
+            setLoadingText(messages[0]);
+            textInterval = setInterval(() => {
+                i = (i + 1) % messages.length;
+                setLoadingText(messages[i]);
+            }, 2500);
+        }
+        return () => clearInterval(textInterval);
+    }, [isVideoLoading]);
 
     useEffect(() => {
         let interval: any;
@@ -100,14 +125,39 @@ export const WorkoutSession: React.FC<WorkoutSessionProps> = ({ plan, onComplete
         }
     };
 
+    const handleSelectKey = async () => {
+        if ((window as any).aistudio) {
+            try {
+                await (window as any).aistudio.openSelectKey();
+                // After selecting, try generating again immediately or reset error
+                setVideoError(null);
+            } catch (e) {
+                console.error("Failed to open key selector", e);
+            }
+        } else {
+            alert("Key selector not available in this environment.");
+        }
+    };
+
     const handleGenerateVideo = async () => {
         setIsVideoLoading(true);
+        setVideoError(null);
         try {
             const url = await geminiService.generateExerciseVideo(currentExercise.name, currentExercise.instructions);
             setVideoUrl(url);
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            alert("Failed to generate video. Please try again or ensure you have selected a valid API Key.");
+            let msg = "Video generation failed.";
+            
+            // Check for specific error types regarding API Keys / Billing
+            if (e.message.includes("403") || e.message.includes("permission") || e.message.includes("key")) {
+                msg = "BILLING_REQUIRED"; 
+            } else if (e.message.includes("not found")) {
+                msg = "Model Not Found: The 'veo-3.1-fast-generate-preview' model is not available.";
+            } else {
+                msg = e.message || "Unknown error occurred.";
+            }
+            setVideoError(msg);
         } finally {
             setIsVideoLoading(false);
         }
@@ -148,28 +198,69 @@ export const WorkoutSession: React.FC<WorkoutSessionProps> = ({ plan, onComplete
                         
                         {/* Video Section */}
                         {videoUrl ? (
-                            <div className="mb-6 rounded-2xl overflow-hidden border border-slate-700 bg-black aspect-video shadow-lg">
-                                <video src={videoUrl} controls autoPlay loop className="w-full h-full object-cover" />
+                            <div className="mb-6">
+                                <VideoPlayer src={videoUrl} autoPlay={true} />
                             </div>
                         ) : (
                             <div className="mb-6">
-                                <button 
-                                    onClick={handleGenerateVideo}
-                                    disabled={isVideoLoading}
-                                    className="w-full py-4 bg-slate-900/80 hover:bg-slate-900 border border-slate-700 hover:border-emerald-500/50 text-white rounded-2xl flex items-center justify-center gap-2 transition-all group active:scale-[0.98]"
-                                >
-                                    {isVideoLoading ? (
-                                        <>
-                                            <Loader2 className="animate-spin text-emerald-400" size={20} />
-                                            <span className="text-emerald-400 animate-pulse font-medium">Creating visual demonstration...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Video size={20} className="text-emerald-400 group-hover:scale-110 transition-transform" />
-                                            <span className="font-medium">Generate AI Demo Video (Veo)</span>
-                                        </>
-                                    )}
-                                </button>
+                                {videoError ? (
+                                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-4 flex gap-4 text-left items-start">
+                                        <AlertCircle className="text-red-500 shrink-0 mt-1" size={24} />
+                                        <div className="flex-1">
+                                            <h4 className="font-bold text-red-400">Video Generation Issue</h4>
+                                            
+                                            {videoError === "BILLING_REQUIRED" ? (
+                                                <>
+                                                    <p className="text-xs text-slate-300 mt-1 mb-3">
+                                                        The Veo video model is a premium feature. You must select a Paid API Key from a Google Cloud Project with billing enabled.
+                                                    </p>
+                                                    <button 
+                                                        onClick={handleSelectKey}
+                                                        className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-lg flex items-center gap-2 transition-colors"
+                                                    >
+                                                        <Key size={14} /> Select Paid API Key
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <p className="text-xs text-slate-300 mt-1">{videoError}</p>
+                                                    <button 
+                                                        onClick={() => setVideoError(null)}
+                                                        className="text-xs text-red-400 mt-2 underline"
+                                                    >
+                                                        Try Again
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button 
+                                        onClick={handleGenerateVideo}
+                                        disabled={isVideoLoading}
+                                        className="w-full py-8 bg-slate-900/80 hover:bg-slate-900 border border-slate-700 hover:border-emerald-500/50 text-white rounded-2xl flex flex-col items-center justify-center gap-3 transition-all group active:scale-[0.98]"
+                                    >
+                                        {isVideoLoading ? (
+                                            <>
+                                                <Loader2 className="animate-spin text-emerald-400" size={32} />
+                                                <div className="text-center">
+                                                    <div className="text-emerald-400 font-bold mb-1">Creating Demo...</div>
+                                                    <div className="text-slate-500 text-sm animate-pulse">{loadingText}</div>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
+                                                    <Video size={24} className="text-emerald-400" />
+                                                </div>
+                                                <div className="text-center">
+                                                    <div className="font-bold">Generate AI Demo Video</div>
+                                                    <div className="text-slate-500 text-sm">Powered by Veo</div>
+                                                </div>
+                                            </>
+                                        )}
+                                    </button>
+                                )}
                             </div>
                         )}
 

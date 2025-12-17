@@ -3,6 +3,7 @@ import { useGlobalContext } from '../context/GlobalContext';
 import { communityService } from '../services/communityService';
 import { storageService } from '../services/storageService';
 import { Post, Comment } from '../types';
+import { auth } from '../services/firebase';
 import { Image, Send, Heart, MessageCircle, Trash2, X, Upload, Loader2, MoreVertical, User } from 'lucide-react';
 
 const CommentSection: React.FC<{ postId: string; currentUserId: string }> = ({ postId, currentUserId }) => {
@@ -81,8 +82,10 @@ const CommentSection: React.FC<{ postId: string; currentUserId: string }> = ({ p
 
 const PostCard: React.FC<{ post: Post }> = ({ post }) => {
     const { user } = useGlobalContext();
-    const currentUserId = user?.email || ''; // Using email as ID mapping
-    const isOwner = post.authorId === currentUserId;
+    // Prefer UID matching, fallback to email matching (legacy)
+    const currentUserId = user?.uid || auth.currentUser?.uid || user?.email || ''; 
+    
+    const isOwner = post.authorId === currentUserId || post.authorId === user?.email;
     const isLiked = post.likes.includes(currentUserId);
     
     const [showComments, setShowComments] = useState(false);
@@ -186,8 +189,9 @@ export const Community: React.FC = () => {
         try {
             let imageUrl = '';
             if (selectedImage) {
-                // We use email as UID for simplicity in this demo structure
-                imageUrl = await storageService.uploadCommunityImage(user.email, selectedImage);
+                // Use UID for folder path if available, otherwise fallback (riskier but backwards compatible)
+                const uid = user.uid || auth.currentUser?.uid || 'anonymous';
+                imageUrl = await storageService.uploadCommunityImage(uid, selectedImage);
             }
 
             await communityService.createPost(user, newPostText, imageUrl);
@@ -195,9 +199,10 @@ export const Community: React.FC = () => {
             // Reset form
             setNewPostText('');
             clearImage();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to post", error);
-            alert("Failed to create post. Please try again.");
+            // Display exact error to help debugging (e.g. Permission Denied)
+            alert(`Failed to create post. ${error.message || error.code || "Please check Firebase Rules."}`);
         } finally {
             setIsPosting(false);
         }

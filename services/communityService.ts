@@ -1,4 +1,4 @@
-import { db, fieldValue } from './firebase';
+import { db, fieldValue, auth } from './firebase';
 import { Post, Comment, UserProfile } from '../types';
 
 const POSTS_COLLECTION = 'community_posts';
@@ -15,14 +15,18 @@ export const communityService = {
           ...doc.data()
         })) as Post[];
         callback(posts);
+      }, (error) => {
+        console.error("Error subscribing to posts:", error);
       });
   },
 
   // Create a new post
   createPost: async (user: UserProfile, content: string, imageUrl?: string) => {
-    // Generate a pseudo-ID based on email if uid isn't explicitly in UserProfile in this context
-    const authorId = user.email; 
+    // Prefer UID, fallback to email if somehow missing (shouldn't happen with updated UserContext)
+    const authorId = user.uid || auth.currentUser?.uid || user.email;
     
+    if (!authorId) throw new Error("User ID missing");
+
     const newPost: Omit<Post, 'id'> = {
       authorId,
       authorName: user.name,
@@ -71,7 +75,7 @@ export const communityService = {
 
   // Add Comment
   addComment: async (postId: string, user: UserProfile, text: string) => {
-    const authorId = user.email;
+    const authorId = user.uid || auth.currentUser?.uid || user.email;
     const newComment: Omit<Comment, 'id'> = {
       authorId,
       authorName: user.name,

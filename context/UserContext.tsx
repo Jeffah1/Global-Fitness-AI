@@ -13,6 +13,7 @@ interface UserContextType {
   verifyUserEmail: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   logoutUser: () => void;
+  deleteAccount: () => Promise<void>;
   updateUserProfile: (updates: Partial<UserProfile>) => void;
 }
 
@@ -37,11 +38,22 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const syncUserProfile = async (firebaseUser: any) => {
     // User is signed in, fetch profile from Firestore
-    let profile = await dbService.getUserProfile(firebaseUser.uid);
+    let profile: UserProfile | null = null;
     
-    // If Google Login (first time), profile might not exist yet, create it
+    try {
+        profile = await dbService.getUserProfile(firebaseUser.uid);
+    } catch (error: any) {
+        console.warn("Failed to fetch user profile from DB:", error);
+        // If permission denied (common with default Firestore rules), notify but allow login
+        if (error.code === 'permission-denied') {
+            setError("Warning: Database access denied. Please update Firestore Security Rules to 'allow read, write: if request.auth != null;'. Running in offline mode.");
+        }
+    }
+    
+    // If profile doesn't exist (New Google User) or DB fetch failed, create a new/fallback one
     if (!profile) {
       const newProfile: UserProfile = {
+        uid: firebaseUser.uid,
         name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
         email: firebaseUser.email || '',
         isVerified: firebaseUser.emailVerified,
@@ -52,15 +64,30 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         streak: 0,
         waterIntake: 0
       };
-      await dbService.createUserProfile(firebaseUser.uid, newProfile);
-      profile = newProfile;
-    }
 
-    // Always sync the emailVerified status from Auth to Profile
-    if (profile.isVerified !== firebaseUser.emailVerified) {
-         profile.isVerified = firebaseUser.emailVerified;
-         // Update DB quietly
-         dbService.updateUserProfile(firebaseUser.uid, { isVerified: firebaseUser.emailVerified });
+      try {
+          // Attempt to save to DB
+          await dbService.createUserProfile(firebaseUser.uid, newProfile);
+          profile = newProfile;
+      } catch (error: any) {
+          console.warn("Failed to create profile in DB:", error);
+          // If write fails (permissions), use the in-memory profile so user isn't blocked
+          profile = newProfile;
+      }
+    } else {
+         // Profile existed, ensure UID is attached locally just in case
+         profile.uid = firebaseUser.uid;
+
+         // Sync critical auth fields like verification
+         if (profile.isVerified !== firebaseUser.emailVerified) {
+             profile.isVerified = firebaseUser.emailVerified;
+             // Try to update DB, but don't block if it fails
+             try {
+                dbService.updateUserProfile(firebaseUser.uid, { isVerified: firebaseUser.emailVerified });
+             } catch (e) {
+                 console.warn("Failed to sync verification status to DB", e);
+             }
+         }
     }
 
     setUser(profile);
@@ -82,6 +109,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const firebaseUser = await authService.register(email, password);
     if (firebaseUser) {
       const newUser: UserProfile = {
+        uid: firebaseUser.uid,
         name,
         email,
         isVerified: false,
@@ -92,7 +120,12 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         streak: 0,
         waterIntake: 0
       };
-      await dbService.createUserProfile(firebaseUser.uid, newUser);
+      // We try to create profile here, but syncUserProfile will also catch it if this fails or if auth state changes triggers first
+      try {
+        await dbService.createUserProfile(firebaseUser.uid, newUser);
+      } catch (error: any) {
+          console.error("Register profile creation error:", error);
+      }
     }
   };
 
@@ -115,12 +148,34 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUser(null);
   };
 
+  const deleteAccount = async () => {
+    if (user && authService.auth.currentUser) {
+      const uid = user.uid || authService.auth.currentUser.uid;
+      // 1. Delete Firestore Data
+      try {
+        await dbService.deleteUserProfile(uid);
+      } catch (e) {
+        console.warn("Failed to delete user profile from DB", e);
+      }
+      
+      // 2. Delete Auth Account
+      // This might throw 'requires-recent-login'
+      await authService.deleteAccount();
+      
+      setUser(null);
+    }
+  };
+
   const updateUserProfile = (updates: Partial<UserProfile>) => {
     if (authService.auth.currentUser && user) {
         // Optimistic update
         setUser({ ...user, ...updates });
         // DB update
-        dbService.updateUserProfile(authService.auth.currentUser.uid, updates);
+        try {
+            dbService.updateUserProfile(authService.auth.currentUser.uid, updates);
+        } catch (e) {
+            console.warn("Failed to update profile in DB", e);
+        }
     }
   };
 
@@ -134,6 +189,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       verifyUserEmail, 
       resetPassword,
       logoutUser, 
+      deleteAccount,
       updateUserProfile 
     }}>
       {children}

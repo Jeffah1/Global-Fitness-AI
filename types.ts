@@ -61,6 +61,7 @@ export interface ChatMessage {
 }
 
 export interface UserProfile {
+  uid?: string;
   name: string;
   email: string;
   isVerified: boolean;
@@ -85,6 +86,14 @@ export interface MarketItem {
   image?: string;
   description: string;
   isPremium?: boolean;
+}
+
+export interface GroceryItem {
+  id: string;
+  name: string;
+  checked: boolean;
+  price?: number;
+  addedAt: string;
 }
 
 export interface Comment {

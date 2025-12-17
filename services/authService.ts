@@ -28,6 +28,8 @@ const getErrorMessage = (error: any) => {
       return 'An account already exists with the same email address but different sign-in credentials. Sign in using a provider associated with this email address.';
     case 'auth/operation-not-supported-in-this-environment':
       return 'This authentication method is not supported in this environment. Please try a different method.';
+    case 'auth/requires-recent-login':
+      return 'For security, please log out and log back in before deleting your account.';
     default:
       return error.message || 'An unknown error occurred.';
   }
@@ -72,6 +74,16 @@ export const authService = {
       await auth.signOut();
     } catch (error) {
       console.error("Logout failed", error);
+    }
+  },
+
+  deleteAccount: async () => {
+    if (auth.currentUser) {
+      try {
+        await auth.currentUser.delete();
+      } catch (error) {
+        throw new Error(getErrorMessage(error));
+      }
     }
   },
 

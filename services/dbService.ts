@@ -24,6 +24,10 @@ export const dbService = {
     await db.collection('users').doc(uid).update(data);
   },
 
+  deleteUserProfile: async (uid: string) => {
+    await db.collection('users').doc(uid).delete();
+  },
+
   // --- WORKOUT OPERATIONS ---
   saveWorkoutLog: async (uid: string, log: WorkoutLog) => {
     // Using log.id as document ID

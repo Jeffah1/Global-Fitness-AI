@@ -1,4 +1,3 @@
-
 import React, { ReactNode } from 'react';
 import { AppProvider, useApp } from './AppContext';
 import { UserProvider, useUser } from './UserContext';
@@ -28,7 +27,6 @@ export const useGlobalContext = () => {
   const premium = usePremium();
   const workout = useWorkout();
 
-  // Combine functionality to match old GlobalContext interface
   return {
     // State
     user: userContext.user,
@@ -68,6 +66,10 @@ export const useGlobalContext = () => {
     logWorkout: workout.logWorkout,
     addToGroceryList: workout.addToGroceryList,
     removeFromGroceryList: workout.removeFromGroceryList,
+    toggleGroceryItem: workout.toggleGroceryItem,
+    updateGroceryItem: workout.updateGroceryItem,
+    clearCheckedItems: workout.clearCheckedItems,
+    
     updateProfile: userContext.updateUserProfile,
     upgradeToPremium: premium.upgradeToPremium,
     

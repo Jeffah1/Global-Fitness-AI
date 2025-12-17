@@ -145,6 +145,42 @@ When analyzing workout history, be specific about volume, intensity, and recover
       });
   }
 
+  async analyzeGroceryItem(item: string) {
+    const prompt = `Analyze this shopping item: "${item}".
+    1. Categorize it into one of: 'Essentials', 'Groceries', 'Household', 'Personal Care', 'Optional'.
+    2. Provide a realistic estimated price range (e.g. "$2 - $4") based on typical US market prices.
+    3. Provide a very short, non-judgmental, helpful planning tip (e.g. "Check pantry first" or "Cheaper in bulk").`;
+
+    const schema: Schema = {
+      type: Type.OBJECT,
+      properties: {
+        category: { type: Type.STRING, enum: ['Essentials', 'Groceries', 'Household', 'Personal Care', 'Optional'] },
+        estimatedRange: { type: Type.STRING },
+        aiTip: { type: Type.STRING }
+      },
+      required: ["category", "estimatedRange", "aiTip"]
+    };
+
+    try {
+        const response = await this.ai.models.generateContent({
+            model: MODEL_NAME,
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: schema,
+            },
+        });
+
+        if (response.text) {
+            return JSON.parse(response.text);
+        }
+        return null;
+    } catch (e) {
+        console.error("Analysis failed", e);
+        return { category: 'Uncategorized', estimatedRange: '', aiTip: '' };
+    }
+  }
+
   async startLiveSession(callbacks: any, config: LiveConnectConfig) {
     return this.ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',

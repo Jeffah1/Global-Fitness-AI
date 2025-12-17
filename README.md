@@ -24,8 +24,23 @@ FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 FIREBASE_APP_ID=your_app_id
 ```
 
-### 2. Run the App
-Install dependencies and run the development server (depending on your build tool, e.g., Vite, Parcel, or CRA).
+### 2. Firebase Rules Configuration (Critical)
+For the app to function (save data, upload images), you must configure Security Rules in the Firebase Console.
+
+**Firestore Database Rules:**
+1. Go to **Firebase Console > Firestore Database > Rules**.
+2. Paste the content of `firestore.rules` from this project.
+3. Click **Publish**.
+
+**Storage Rules:**
+1. Go to **Firebase Console > Storage > Rules**.
+2. Paste the content of `storage.rules` from this project.
+3. Click **Publish**.
+
+*Note: The default rules in this project allow any authenticated user to read/write data. For production, you should restrict these further.*
+
+### 3. Run the App
+Install dependencies and run the development server.
 
 ```bash
 npm install

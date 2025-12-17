@@ -43,14 +43,18 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
         profile = await dbService.getUserProfile(firebaseUser.uid);
     } catch (error: any) {
-        console.warn("Failed to fetch user profile from DB:", error);
-        // If permission denied (common with default Firestore rules), notify but allow login
+        console.error("Failed to fetch user profile from DB:", error);
+        
         if (error.code === 'permission-denied') {
-            setError("Warning: Database access denied. Please update Firestore Security Rules to 'allow read, write: if request.auth != null;'. Running in offline mode.");
+            setError("Database Permission Denied. Please update your Firestore Security Rules to 'allow read, write: if request.auth != null;'");
+        } else {
+            setError(error.message);
         }
+        // We do not fallback to offline mode anymore. 
+        // We stop here or allow partial functionality, but we prefer to warn the user.
     }
     
-    // If profile doesn't exist (New Google User) or DB fetch failed, create a new/fallback one
+    // If profile doesn't exist (New Google User) or DB fetch returned null
     if (!profile) {
       const newProfile: UserProfile = {
         uid: firebaseUser.uid,
@@ -70,9 +74,12 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           await dbService.createUserProfile(firebaseUser.uid, newProfile);
           profile = newProfile;
       } catch (error: any) {
-          console.warn("Failed to create profile in DB:", error);
-          // If write fails (permissions), use the in-memory profile so user isn't blocked
-          profile = newProfile;
+          console.error("Failed to create profile in DB:", error);
+          if (error.code === 'permission-denied') {
+             setError("Database Permission Denied. Check Firestore Rules.");
+          }
+          // Fallback to memory only so the app doesn't crash on login
+          profile = newProfile; 
       }
     } else {
          // Profile existed, ensure UID is attached locally just in case
@@ -81,7 +88,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
          // Sync critical auth fields like verification
          if (profile.isVerified !== firebaseUser.emailVerified) {
              profile.isVerified = firebaseUser.emailVerified;
-             // Try to update DB, but don't block if it fails
+             // Try to update DB
              try {
                 dbService.updateUserProfile(firebaseUser.uid, { isVerified: firebaseUser.emailVerified });
              } catch (e) {
@@ -98,7 +105,6 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const loginWithGoogle = async () => {
-    // With Popup flow, we get the result immediately
     const firebaseUser = await authService.loginWithGoogle();
     if (firebaseUser) {
         await syncUserProfile(firebaseUser);
@@ -120,11 +126,12 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         streak: 0,
         waterIntake: 0
       };
-      // We try to create profile here, but syncUserProfile will also catch it if this fails or if auth state changes triggers first
+      
       try {
         await dbService.createUserProfile(firebaseUser.uid, newUser);
       } catch (error: any) {
           console.error("Register profile creation error:", error);
+          setError("Account created, but database write failed. Check Security Rules.");
       }
     }
   };
@@ -159,7 +166,6 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       
       // 2. Delete Auth Account
-      // This might throw 'requires-recent-login'
       await authService.deleteAccount();
       
       setUser(null);
@@ -182,7 +188,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   return (
     <UserContext.Provider value={{ 
       user, 
-      isAuthenticated: !!user, 
+      isAuthenticated: !!user,
       loginUser, 
       loginWithGoogle,
       registerUser, 

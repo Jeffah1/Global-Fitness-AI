@@ -1,5 +1,5 @@
 import { db, fieldValue, auth } from './firebase';
-import { Post, Comment, UserProfile } from '../types';
+import { Post, Comment, UserProfile, PostType } from '../types';
 
 const POSTS_COLLECTION = 'community_posts';
 
@@ -21,7 +21,7 @@ export const communityService = {
   },
 
   // Create a new post
-  createPost: async (user: UserProfile, content: string, imageUrl?: string) => {
+  createPost: async (user: UserProfile, content: string, type: PostType, imageUrl?: string) => {
     // Prefer UID, fallback to email if somehow missing (shouldn't happen with updated UserContext)
     const authorId = user.uid || auth.currentUser?.uid || user.email;
     
@@ -31,9 +31,10 @@ export const communityService = {
       authorId,
       authorName: user.name,
       authorFitnessLevel: user.fitnessLevel,
+      type: type || 'Reflection',
       content,
       imageUrl: imageUrl || '',
-      likes: [],
+      likes: [], // "Encourage" array
       commentsCount: 0,
       timestamp: new Date().toISOString()
     };
@@ -46,7 +47,7 @@ export const communityService = {
     await db.collection(POSTS_COLLECTION).doc(postId).delete();
   },
 
-  // Toggle Like
+  // Toggle Like (Encourage)
   toggleLike: async (postId: string, userId: string, isLiked: boolean) => {
     const postRef = db.collection(POSTS_COLLECTION).doc(postId);
     if (isLiked) {

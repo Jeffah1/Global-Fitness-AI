@@ -1,12 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import { useGlobalContext } from '../context/GlobalContext';
-import { User, Settings, Award, Ruler, Scale, LogOut, Crown, TrendingUp, Lock, ArrowUpRight } from 'lucide-react';
+import { useUser } from '../context/UserContext'; // Explicitly importing useUser for deleteAccount access if needed directly, though Global covers most
+import { User, Settings, Award, Ruler, Scale, LogOut, Crown, TrendingUp, Lock, ArrowUpRight, Trash2, AlertTriangle, Edit2, Check, X } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from 'recharts';
 
 export const Profile: React.FC = () => {
   const { user, updateProfile, logout, workoutHistory, upgradeToPremium } = useGlobalContext();
+  const { deleteAccount } = useUser(); // Get delete action
+  
   const [isEditing, setIsEditing] = useState(false);
-  const [form, setForm] = useState(user?.stats || { age: 0, weight: 0, height: 0, gender: 'Male' });
+  const [formStats, setFormStats] = useState(user?.stats || { age: 0, weight: 0, height: 0, gender: 'Male' });
+  const [formName, setFormName] = useState(user?.name || '');
+  const [isDeleting, setIsDeleting] = useState(false); // UI state for showing delete confirmation
 
   // Analytics Data Calculation
   const muscleData = useMemo(() => {
@@ -49,8 +54,19 @@ export const Profile: React.FC = () => {
   if (!user) return null;
 
   const handleSave = () => {
-    updateProfile({ stats: form as any });
+    updateProfile({ 
+        name: formName,
+        stats: formStats as any 
+    });
     setIsEditing(false);
+  };
+
+  const handleDeleteAccount = async () => {
+      try {
+          await deleteAccount();
+      } catch (e: any) {
+          alert("Failed to delete account: " + e.message);
+      }
   };
 
   return (
@@ -62,11 +78,24 @@ export const Profile: React.FC = () => {
                 <div className="w-24 h-24 rounded-full bg-slate-700 flex items-center justify-center text-slate-300 border-4 border-slate-600 shadow-xl">
                     <User size={40} />
                 </div>
-                <div className="text-center md:text-left flex-1">
-                    <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
-                        <h2 className="text-3xl font-bold text-white">{user.name}</h2>
-                        {user.isPremium && <Award className="text-yellow-400 drop-shadow-lg" fill="currentColor" size={24} />}
-                    </div>
+                <div className="text-center md:text-left flex-1 w-full md:w-auto">
+                    {isEditing ? (
+                        <div className="mb-2">
+                            <label className="text-xs text-slate-500 uppercase font-bold">Display Name</label>
+                            <input 
+                                type="text"
+                                value={formName}
+                                onChange={(e) => setFormName(e.target.value)}
+                                className="w-full md:w-auto block bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white font-bold text-xl focus:border-emerald-500 outline-none"
+                            />
+                        </div>
+                    ) : (
+                        <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
+                            <h2 className="text-3xl font-bold text-white">{user.name}</h2>
+                            {user.isPremium && <Award className="text-yellow-400 drop-shadow-lg" fill="currentColor" size={24} />}
+                        </div>
+                    )}
+                    
                     <p className="text-slate-400">{user.email}</p>
                     <div className="flex gap-2 mt-4 justify-center md:justify-start">
                         <span className="px-3 py-1 rounded-full bg-slate-700 text-xs font-bold text-slate-300 uppercase tracking-wide border border-slate-600">
@@ -77,13 +106,43 @@ export const Profile: React.FC = () => {
                         </span>
                     </div>
                 </div>
-                <button 
-                    onClick={logout}
-                    className="p-3 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-xl transition-all active:scale-95 border border-transparent hover:border-red-400/30"
-                    title="Sign Out"
-                >
-                    <LogOut size={20} />
-                </button>
+                <div className="flex gap-2">
+                    {isEditing ? (
+                        <>
+                             <button 
+                                onClick={handleSave}
+                                className="p-3 bg-emerald-500 hover:bg-emerald-600 text-slate-900 rounded-xl transition-all active:scale-95 shadow-lg shadow-emerald-500/20"
+                                title="Save Changes"
+                            >
+                                <Check size={20} />
+                            </button>
+                             <button 
+                                onClick={() => { setIsEditing(false); setFormName(user.name); setFormStats(user.stats); }}
+                                className="p-3 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl transition-all active:scale-95"
+                                title="Cancel"
+                            >
+                                <X size={20} />
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <button 
+                                onClick={() => setIsEditing(true)}
+                                className="p-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl transition-all active:scale-95 border border-slate-600"
+                                title="Edit Profile"
+                            >
+                                <Edit2 size={20} />
+                            </button>
+                            <button 
+                                onClick={logout}
+                                className="p-3 bg-slate-700 hover:bg-red-500/20 hover:text-red-400 text-slate-300 rounded-xl transition-all active:scale-95 border border-slate-600 hover:border-red-500/30"
+                                title="Sign Out"
+                            >
+                                <LogOut size={20} />
+                            </button>
+                        </>
+                    )}
+                </div>
             </div>
         </div>
 
@@ -94,12 +153,14 @@ export const Profile: React.FC = () => {
                          <Settings size={20} className="text-emerald-400" />
                          Body Stats
                      </h3>
-                     <button 
-                        onClick={() => isEditing ? handleSave() : setIsEditing(true)}
-                        className="text-xs text-emerald-400 hover:text-emerald-300 hover:underline transition-colors font-bold"
-                     >
-                         {isEditing ? 'Save Changes' : 'Edit Stats'}
-                     </button>
+                     {!isEditing && (
+                         <button 
+                            onClick={() => setIsEditing(true)}
+                            className="text-xs text-emerald-400 hover:text-emerald-300 hover:underline transition-colors font-bold"
+                         >
+                             Edit
+                         </button>
+                     )}
                  </div>
                  
                  <div className="space-y-4">
@@ -111,8 +172,8 @@ export const Profile: React.FC = () => {
                         {isEditing ? (
                             <input 
                                 type="number" 
-                                value={form.weight}
-                                onChange={(e) => setForm({...form, weight: Number(e.target.value)})}
+                                value={formStats.weight}
+                                onChange={(e) => setFormStats({...formStats, weight: Number(e.target.value)})}
                                 className="w-20 bg-slate-800 text-white text-right p-1 rounded border border-slate-600 focus:border-emerald-500 outline-none"
                             />
                         ) : (
@@ -127,8 +188,8 @@ export const Profile: React.FC = () => {
                          {isEditing ? (
                             <input 
                                 type="number" 
-                                value={form.height}
-                                onChange={(e) => setForm({...form, height: Number(e.target.value)})}
+                                value={formStats.height}
+                                onChange={(e) => setFormStats({...formStats, height: Number(e.target.value)})}
                                 className="w-20 bg-slate-800 text-white text-right p-1 rounded border border-slate-600 focus:border-emerald-500 outline-none"
                             />
                         ) : (
@@ -143,8 +204,8 @@ export const Profile: React.FC = () => {
                          {isEditing ? (
                             <input 
                                 type="number" 
-                                value={form.age}
-                                onChange={(e) => setForm({...form, age: Number(e.target.value)})}
+                                value={formStats.age}
+                                onChange={(e) => setFormStats({...formStats, age: Number(e.target.value)})}
                                 className="w-20 bg-slate-800 text-white text-right p-1 rounded border border-slate-600 focus:border-emerald-500 outline-none"
                             />
                         ) : (
@@ -287,6 +348,44 @@ export const Profile: React.FC = () => {
                             className="bg-emerald-500 hover:bg-emerald-600 text-slate-900 font-bold py-3 px-8 rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2 mx-auto active:scale-95"
                         >
                             Upgrade Now <ArrowUpRight size={18} />
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+
+        {/* Delete Account Section */}
+        <div className="border-t border-slate-700 pt-8 mt-8">
+            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <AlertTriangle size={20} className="text-red-500" /> Danger Zone
+            </h3>
+            
+            {!isDeleting ? (
+                <button 
+                    onClick={() => setIsDeleting(true)}
+                    className="flex items-center gap-2 text-red-400 hover:text-red-300 transition-colors text-sm font-bold px-4 py-2 rounded-lg hover:bg-red-500/10 border border-transparent hover:border-red-500/20"
+                >
+                    <Trash2 size={16} /> Delete Account
+                </button>
+            ) : (
+                <div className="bg-red-500/10 border border-red-500/30 p-6 rounded-2xl animate-fade-in">
+                    <h4 className="font-bold text-red-400 mb-2">Are you sure?</h4>
+                    <p className="text-sm text-slate-300 mb-4">
+                        This action will permanently delete your account, workout history, and profile data. 
+                        This cannot be undone.
+                    </p>
+                    <div className="flex gap-4">
+                        <button 
+                            onClick={handleDeleteAccount}
+                            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors shadow-lg shadow-red-600/20"
+                        >
+                            Yes, Delete My Account
+                        </button>
+                        <button 
+                            onClick={() => setIsDeleting(false)}
+                            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-lg transition-colors"
+                        >
+                            Cancel
                         </button>
                     </div>
                 </div>

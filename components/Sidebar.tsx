@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Activity, Dumbbell, Utensils, MessageSquare, Menu, X, CalendarDays, ShoppingBag, User, Users } from 'lucide-react';
 import { AppView } from '../types';
+import { useUser } from '../context/UserContext';
 
 interface SidebarProps {
   currentView: AppView;
@@ -10,6 +11,8 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isOpen, setIsOpen }) => {
+  const { user } = useUser();
+  
   const navItems = [
     { view: AppView.DASHBOARD, label: 'Dashboard', icon: <Activity size={20} /> },
     { view: AppView.WORKOUTS, label: 'Workouts', icon: <Dumbbell size={20} /> },
@@ -17,7 +20,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isOpen, se
     { view: AppView.CHAT, label: 'AI Trainer', icon: <MessageSquare size={20} /> },
     { view: AppView.HISTORY, label: 'History', icon: <CalendarDays size={20} /> },
     { view: AppView.COMMUNITY, label: 'Community', icon: <Users size={20} /> },
-    { view: AppView.MARKET, label: 'Marketplace', icon: <ShoppingBag size={20} /> },
+    { view: AppView.MARKET, label: 'Smart Plan', icon: <ShoppingBag size={20} /> },
     { view: AppView.PROFILE, label: 'Profile', icon: <User size={20} /> },
   ];
 
@@ -65,12 +68,9 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isOpen, se
         </nav>
 
         <div className="p-4 border-t border-slate-800">
-            <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700">
-                <p className="text-xs text-slate-400 uppercase font-semibold mb-1">Status</p>
-                <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span className="text-sm text-slate-200">System Online</span>
-                </div>
+            <div className="flex items-center gap-3 p-2">
+                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                 <span className="text-xs text-slate-500 font-bold uppercase">System Online</span>
             </div>
         </div>
       </div>

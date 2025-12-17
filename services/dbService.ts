@@ -1,5 +1,5 @@
 import { db } from './firebase';
-import { UserProfile, WorkoutLog } from '../types';
+import { UserProfile, WorkoutLog, GroceryItem } from '../types';
 
 export const dbService = {
   // --- USER OPERATIONS ---
@@ -24,6 +24,13 @@ export const dbService = {
     await db.collection('users').doc(uid).update(data);
   },
 
+  deleteUserProfile: async (uid: string) => {
+    // Delete main profile
+    await db.collection('users').doc(uid).delete();
+    // Note: Subcollections (workouts/history) must be deleted manually or via Cloud Functions in a production app
+    // For this level of app, we leave them as orphaned documents usually.
+  },
+
   // --- WORKOUT OPERATIONS ---
   saveWorkoutLog: async (uid: string, log: WorkoutLog) => {
     // Using log.id as document ID
@@ -37,15 +44,17 @@ export const dbService = {
     return querySnapshot.docs.map(doc => doc.data() as WorkoutLog);
   },
 
-  // --- GROCERY / NUTRITION OPERATIONS ---
-  saveGroceryList: async (uid: string, items: string[]) => {
-    await db.collection('nutrition').doc(uid).set({ groceryList: items }, { merge: true });
+  // --- SMART PLAN / NUTRITION OPERATIONS ---
+  saveGroceryList: async (uid: string, items: GroceryItem[]) => {
+    // Firestore cannot store custom class instances, ensure plain objects
+    const cleanItems = items.map(item => ({...item})); 
+    await db.collection('nutrition').doc(uid).set({ groceryList: cleanItems }, { merge: true });
   },
 
-  getGroceryList: async (uid: string): Promise<string[]> => {
+  getGroceryList: async (uid: string): Promise<GroceryItem[]> => {
     const docSnap = await db.collection('nutrition').doc(uid).get();
     if (docSnap.exists) {
-      return docSnap.data()?.groceryList || [];
+      return (docSnap.data()?.groceryList as GroceryItem[]) || [];
     }
     return [];
   }

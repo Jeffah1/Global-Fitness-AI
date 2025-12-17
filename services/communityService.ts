@@ -1,5 +1,5 @@
-import { db, fieldValue } from './firebase';
-import { Post, Comment, UserProfile } from '../types';
+import { db, fieldValue, auth } from './firebase';
+import { Post, Comment, UserProfile, PostType } from '../types';
 
 const POSTS_COLLECTION = 'community_posts';
 
@@ -15,21 +15,26 @@ export const communityService = {
           ...doc.data()
         })) as Post[];
         callback(posts);
+      }, (error) => {
+        console.error("Error subscribing to posts:", error);
       });
   },
 
   // Create a new post
-  createPost: async (user: UserProfile, content: string, imageUrl?: string) => {
-    // Generate a pseudo-ID based on email if uid isn't explicitly in UserProfile in this context
-    const authorId = user.email; 
+  createPost: async (user: UserProfile, content: string, type: PostType, imageUrl?: string) => {
+    // Prefer UID, fallback to email if somehow missing (shouldn't happen with updated UserContext)
+    const authorId = user.uid || auth.currentUser?.uid || user.email;
     
+    if (!authorId) throw new Error("User ID missing");
+
     const newPost: Omit<Post, 'id'> = {
       authorId,
       authorName: user.name,
       authorFitnessLevel: user.fitnessLevel,
+      type: type || 'Reflection',
       content,
       imageUrl: imageUrl || '',
-      likes: [],
+      likes: [], // "Encourage" array
       commentsCount: 0,
       timestamp: new Date().toISOString()
     };
@@ -42,7 +47,7 @@ export const communityService = {
     await db.collection(POSTS_COLLECTION).doc(postId).delete();
   },
 
-  // Toggle Like
+  // Toggle Like (Encourage)
   toggleLike: async (postId: string, userId: string, isLiked: boolean) => {
     const postRef = db.collection(POSTS_COLLECTION).doc(postId);
     if (isLiked) {
@@ -71,7 +76,7 @@ export const communityService = {
 
   // Add Comment
   addComment: async (postId: string, user: UserProfile, text: string) => {
-    const authorId = user.email;
+    const authorId = user.uid || auth.currentUser?.uid || user.email;
     const newComment: Omit<Comment, 'id'> = {
       authorId,
       authorName: user.name,

@@ -1,5 +1,4 @@
 
-
 export enum AppView {
   DASHBOARD = 'DASHBOARD',
   WORKOUTS = 'WORKOUTS',
@@ -61,6 +60,7 @@ export interface ChatMessage {
 }
 
 export interface UserProfile {
+  uid?: string;
   name: string;
   email: string;
   isVerified: boolean;
@@ -87,6 +87,20 @@ export interface MarketItem {
   isPremium?: boolean;
 }
 
+export type GroceryCategory = 'Essentials' | 'Groceries' | 'Household' | 'Personal Care' | 'Optional' | 'Uncategorized';
+
+export interface GroceryItem {
+  id: string;
+  name: string;
+  checked: boolean;
+  price?: number; // User's planned cost
+  addedAt: string;
+  // Smart Planning Fields
+  category?: GroceryCategory;
+  estimatedRange?: string; // e.g. "$2.50 - $4.00"
+  aiTip?: string; // "Often cheaper in bulk"
+}
+
 export interface Comment {
   id: string;
   authorId: string;
@@ -95,14 +109,17 @@ export interface Comment {
   timestamp: string;
 }
 
+export type PostType = 'Progress' | 'Question' | 'Reflection' | 'Tip';
+
 export interface Post {
   id: string;
   authorId: string;
   authorName: string;
   authorFitnessLevel: string;
+  type?: PostType; // Optional for backward compatibility with old posts
   content: string;
   imageUrl?: string;
-  likes: string[]; // Array of user IDs
+  likes: string[]; // Array of user IDs (Used for "Encourage")
   commentsCount: number;
   timestamp: string;
 }

@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { useGlobalContext } from '../context/GlobalContext';
+import { useUser } from '../context/UserContext';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { TrendingUp, Flame, Timer, Trophy, Dumbbell, Droplet, Plus, Minus, ArrowRight } from 'lucide-react';
 import { AppView } from '../types';

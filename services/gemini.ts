@@ -145,6 +145,42 @@ When analyzing workout history, be specific about volume, intensity, and recover
       });
   }
 
+  async analyzeGroceryItem(item: string) {
+    const prompt = `Analyze this shopping item: "${item}".
+    1. Categorize it into one of: 'Essentials', 'Groceries', 'Household', 'Personal Care', 'Optional'.
+    2. Provide a realistic estimated price range (e.g. "$2 - $4") based on typical US market prices.
+    3. Provide a very short, non-judgmental, helpful planning tip (e.g. "Check pantry first" or "Cheaper in bulk").`;
+
+    const schema: Schema = {
+      type: Type.OBJECT,
+      properties: {
+        category: { type: Type.STRING, enum: ['Essentials', 'Groceries', 'Household', 'Personal Care', 'Optional'] },
+        estimatedRange: { type: Type.STRING },
+        aiTip: { type: Type.STRING }
+      },
+      required: ["category", "estimatedRange", "aiTip"]
+    };
+
+    try {
+        const response = await this.ai.models.generateContent({
+            model: MODEL_NAME,
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: schema,
+            },
+        });
+
+        if (response.text) {
+            return JSON.parse(response.text);
+        }
+        return null;
+    } catch (e) {
+        console.error("Analysis failed", e);
+        return { category: 'Uncategorized', estimatedRange: '', aiTip: '' };
+    }
+  }
+
   async startLiveSession(callbacks: any, config: LiveConnectConfig) {
     return this.ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -154,49 +190,64 @@ When analyzing workout history, be specific about volume, intensity, and recover
   }
 
   async generateExerciseVideo(exerciseName: string, instructions: string): Promise<string> {
-    // Ensure the user has selected a paid API key for Veo
+    // Check if key is selected. If not, prompt.
     if (typeof window !== 'undefined' && (window as any).aistudio) {
         const hasKey = await (window as any).aistudio.hasSelectedApiKey();
-        if (!hasKey) {
-            await (window as any).aistudio.openSelectKey();
-        }
+        // We do NOT open the key selector here automatically anymore.
+        // We let the UI handle the specific error so the user has control.
+        // However, we still create a fresh client below to ensure it picks up any newly selected key.
     }
 
     // Re-initialize AI with the current key environment to ensure Veo access
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
-    let operation = await ai.models.generateVideos({
-      model: 'veo-3.1-fast-generate-preview',
-      prompt: `Cinematic, clear fitness demonstration of ${exerciseName}. ${instructions}. Professional lighting, gym background, 4k resolution, stable camera.`,
-      config: {
-        numberOfVideos: 1,
-        resolution: '720p',
-        aspectRatio: '16:9'
-      }
-    });
+    // Improved prompt for better length/clarity/education
+    const enhancedPrompt = `
+      High-quality, educational fitness demonstration of ${exerciseName}.
+      View: Side profile or 45-degree angle to clearly show proper form and mechanics.
+      Action: A fit individual performing the movement slowly and with perfect technique.
+      Style: Professional gym lighting, neutral background, 4k resolution, photorealistic.
+      Details: Focus on the muscle contraction and stability. ${instructions}.
+    `;
 
-    // Poll for completion
-    while (!operation.done) {
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      operation = await ai.operations.getVideosOperation({operation: operation});
+    try {
+        let operation = await ai.models.generateVideos({
+            model: 'veo-3.1-fast-generate-preview',
+            prompt: enhancedPrompt,
+            config: {
+                numberOfVideos: 1,
+                resolution: '720p',
+                aspectRatio: '16:9'
+            }
+        });
+
+        // Poll for completion
+        while (!operation.done) {
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            operation = await ai.operations.getVideosOperation({operation: operation});
+        }
+
+        if (operation.error) {
+            // Throw the raw error message so the UI can detect "403" or "permission"
+            throw new Error((operation.error as any).message || "Video generation failed");
+        }
+
+        const videoUri = operation.response?.generatedVideos?.[0]?.video?.uri;
+        if (!videoUri) throw new Error("No video URI returned");
+
+        // Fetch the video content using the key to get the raw bytes/blob
+        const response = await fetch(`${videoUri}&key=${process.env.API_KEY}`);
+        if (!response.ok) {
+            throw new Error("Failed to download generated video");
+        }
+        
+        const blob = await response.blob();
+        return URL.createObjectURL(blob);
+
+    } catch (error: any) {
+        // Ensure the error bubbles up
+        throw error;
     }
-
-    if (operation.error) {
-        const errorMessage = (operation.error as any).message || "Video generation failed";
-        throw new Error(errorMessage as string);
-    }
-
-    const videoUri = operation.response?.generatedVideos?.[0]?.video?.uri;
-    if (!videoUri) throw new Error("No video URI returned");
-
-    // Fetch the video content using the key to get the raw bytes/blob
-    const response = await fetch(`${videoUri}&key=${process.env.API_KEY}`);
-    if (!response.ok) {
-        throw new Error("Failed to download generated video");
-    }
-    
-    const blob = await response.blob();
-    return URL.createObjectURL(blob);
   }
 }
 

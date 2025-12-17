@@ -1,5 +1,7 @@
 {
   "name": "Global Fitness AI",
   "description": "Your personalized, AI-powered fitness companion. Generate custom workout plans, nutrition advice, and chat with a virtual personal trainer powered by Gemini.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }

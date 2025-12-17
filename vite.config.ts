@@ -3,12 +3,14 @@ import react from '@vitejs/plugin-react';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, (process as any).cwd(), '');
+  // Load env file based on `mode` in the current working directory.
+  // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
+  const env = loadEnv(mode, process.cwd(), '');
+
   return {
     plugins: [react()],
     define: {
-      // This ensures process.env.VAR works in the browser
-      // We default to '' to prevent JSON.stringify(undefined) which can cause issues
+      // Expose env variables to the client
       'process.env.API_KEY': JSON.stringify(env.API_KEY || ''),
       'process.env.FIREBASE_API_KEY': JSON.stringify(env.FIREBASE_API_KEY || ''),
       'process.env.FIREBASE_AUTH_DOMAIN': JSON.stringify(env.FIREBASE_AUTH_DOMAIN || ''),

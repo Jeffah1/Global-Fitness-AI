@@ -1,12 +1,17 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { UserProfile } from '../types';
+import { authService } from '../services/authService';
+import { dbService } from '../services/dbService';
+import { useApp } from './AppContext';
 
 interface UserContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
-  loginUser: (email: string) => Promise<void>;
+  loginUser: (email: string, pass: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   registerUser: (email: string, password: string, name: string, goal: any, level: any) => Promise<void>;
   verifyUserEmail: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   logoutUser: () => void;
   updateUserProfile: (updates: Partial<UserProfile>) => void;
 }
@@ -15,68 +20,118 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
+  const { setError } = useApp();
 
+  // Listen for real-time auth changes and redirect results
   useEffect(() => {
-    try {
-      const storedUser = localStorage.getItem('gfa_user');
-      if (storedUser) setUser(JSON.parse(storedUser));
-    } catch (e) {
-      console.error("Failed to load user", e);
-    }
+    // Check for redirect result (from Google Login)
+    const checkRedirect = async () => {
+        try {
+            const firebaseUser = await authService.getRedirectResult();
+            if (firebaseUser) {
+                await syncUserProfile(firebaseUser);
+            }
+        } catch (e: any) {
+            console.error("Redirect login error:", e);
+            setError(e.message);
+        }
+    };
+    checkRedirect();
+
+    const unsubscribe = authService.onAuthStateChanged(async (firebaseUser) => {
+      if (firebaseUser) {
+        await syncUserProfile(firebaseUser);
+      } else {
+        setUser(null);
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const saveUser = (u: UserProfile | null) => {
-    setUser(u);
-    if (u) localStorage.setItem('gfa_user', JSON.stringify(u));
-    else localStorage.removeItem('gfa_user');
+  const syncUserProfile = async (firebaseUser: any) => {
+    // User is signed in, fetch profile from Firestore
+    let profile = await dbService.getUserProfile(firebaseUser.uid);
+    
+    // If Google Login (first time), profile might not exist yet, create it
+    if (!profile) {
+      const newProfile: UserProfile = {
+        name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+        email: firebaseUser.email || '',
+        isVerified: firebaseUser.emailVerified,
+        isPremium: false,
+        fitnessLevel: 'Beginner', // Default
+        goal: 'Improve Health', // Default
+        stats: { age: 0, weight: 0, height: 0, gender: 'Male' },
+        streak: 0,
+        waterIntake: 0
+      };
+      await dbService.createUserProfile(firebaseUser.uid, newProfile);
+      profile = newProfile;
+    }
+
+    // Always sync the emailVerified status from Auth to Profile
+    if (profile.isVerified !== firebaseUser.emailVerified) {
+         profile.isVerified = firebaseUser.emailVerified;
+         // Update DB quietly
+         dbService.updateUserProfile(firebaseUser.uid, { isVerified: firebaseUser.emailVerified });
+    }
+
+    setUser(profile);
   };
 
-  const loginUser = async (email: string) => {
-    // Placeholder API call
-    await new Promise(r => setTimeout(r, 1000));
-    const mockUser: UserProfile = {
-      name: email.split('@')[0],
-      email,
-      isVerified: true,
-      isPremium: false,
-      fitnessLevel: 'Intermediate',
-      goal: 'Muscle Gain',
-      stats: { age: 25, weight: 70, height: 175, gender: 'Male' },
-      streak: 0,
-      waterIntake: 0
-    };
-    saveUser(mockUser);
+  const loginUser = async (email: string, pass: string) => {
+    await authService.login(email, pass);
+  };
+
+  const loginWithGoogle = async () => {
+    await authService.loginWithGoogle();
   };
 
   const registerUser = async (email: string, password: string, name: string, goal: any, level: any) => {
-    // Placeholder API call
-    await new Promise(r => setTimeout(r, 1000));
-    const newUser: UserProfile = {
-      name,
-      email,
-      isVerified: false,
-      isPremium: false,
-      fitnessLevel: level,
-      goal: goal,
-      stats: { age: 30, weight: 75, height: 180, gender: 'Male' },
-      streak: 1,
-      waterIntake: 0
-    };
-    saveUser(newUser);
+    const firebaseUser = await authService.register(email, password);
+    if (firebaseUser) {
+      const newUser: UserProfile = {
+        name,
+        email,
+        isVerified: false,
+        isPremium: false,
+        fitnessLevel: level,
+        goal: goal,
+        stats: { age: 0, weight: 0, height: 0, gender: 'Male' },
+        streak: 0,
+        waterIntake: 0
+      };
+      await dbService.createUserProfile(firebaseUser.uid, newUser);
+    }
   };
 
   const verifyUserEmail = async () => {
-    await new Promise(r => setTimeout(r, 1500));
-    if (user) saveUser({ ...user, isVerified: true });
+    if (authService.auth.currentUser) {
+        await authService.auth.currentUser.reload();
+        const updatedUser = authService.auth.currentUser;
+        if (updatedUser?.emailVerified && user) {
+            updateUserProfile({ isVerified: true });
+        }
+    }
+  };
+
+  const resetPassword = async (email: string) => {
+      await authService.resetPassword(email);
   };
 
   const logoutUser = () => {
-    saveUser(null);
-    localStorage.clear();
+    authService.logout();
+    setUser(null);
   };
 
   const updateUserProfile = (updates: Partial<UserProfile>) => {
-    if (user) saveUser({ ...user, ...updates });
+    if (authService.auth.currentUser && user) {
+        // Optimistic update
+        setUser({ ...user, ...updates });
+        // DB update
+        dbService.updateUserProfile(authService.auth.currentUser.uid, updates);
+    }
   };
 
   return (
@@ -84,8 +139,10 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       user, 
       isAuthenticated: !!user, 
       loginUser, 
+      loginWithGoogle,
       registerUser, 
       verifyUserEmail, 
+      resetPassword,
       logoutUser, 
       updateUserProfile 
     }}>

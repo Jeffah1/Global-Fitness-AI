@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, Lock, ArrowLeft } from 'lucide-react';
+import { Mail, Lock, ArrowLeft, AlertCircle } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { InputField } from '../../components/common/Input';
 import { useGlobalContext } from '../../context/GlobalContext';
@@ -13,7 +13,8 @@ interface RegisterScreenProps {
 
 export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onLogin, onBack, onboardingData }) => {
   const { register } = useGlobalContext();
-  const { error } = useApp();
+  const { setError, error } = useApp();
+  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -22,10 +23,11 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onLogin, onBack,
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-      alert("Passwords do not match");
+      setError("Passwords do not match");
       return;
     }
     setLoading(true);
+    setError(null);
     try {
         await register(
             email, 
@@ -34,22 +36,22 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onLogin, onBack,
             onboardingData.goal, 
             onboardingData.activityLevel
         );
-    } catch (err) {
-        console.error(err);
+    } catch (err: any) {
+        setError(err.message);
     } finally {
         setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center p-6 max-w-md mx-auto animate-fade-in">
-      <button onClick={onBack} className="absolute top-8 left-6 text-slate-400 hover:text-white">
+    <div className="min-h-screen flex flex-col justify-center p-6 max-w-md mx-auto animate-fade-in relative">
+      <button onClick={onBack} className="absolute top-8 left-6 text-slate-400 hover:text-white transition-colors">
         <ArrowLeft size={24} />
       </button>
 
       <div className="text-center mb-10">
         <h1 className="text-3xl font-bold text-white mb-2">Create Account</h1>
-        <p className="text-slate-400">Save your personalized plan.</p>
+        <p className="text-slate-400">Save your personalized plan & track progress.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -78,10 +80,15 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onLogin, onBack,
           required
         />
 
-        {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+        {error && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-start gap-3">
+                <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={18} />
+                <p className="text-red-400 text-sm">{error}</p>
+            </div>
+        )}
 
         <Button type="submit" isLoading={loading}>
-          Register
+          Create Account & Verify
         </Button>
       </form>
 

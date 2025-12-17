@@ -1,3 +1,4 @@
+
 import React, { ReactNode } from 'react';
 import { AppProvider, useApp } from './AppContext';
 import { UserProvider, useUser } from './UserContext';
@@ -37,10 +38,10 @@ export const useGlobalContext = () => {
     groceryList: workout.groceryList,
 
     // Auth Actions
-    login: async (email: string) => {
+    login: async (email: string, password: string) => {
         app.setLoading(true);
         try {
-            await userContext.loginUser(email);
+            await userContext.loginUser(email, password);
         } finally {
             app.setLoading(false);
         }

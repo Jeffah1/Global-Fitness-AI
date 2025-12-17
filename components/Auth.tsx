@@ -27,7 +27,7 @@ export const AuthScreen: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(loginEmail);
+      await login(loginEmail, loginPassword);
     } catch (err) {
       console.error(err);
     } finally {
@@ -275,8 +275,7 @@ export const AuthScreen: React.FC = () => {
                 </div>
             )}
         </div>
-    </div>
-  );
+    );
 };
 
 export const VerificationScreen: React.FC = () => {

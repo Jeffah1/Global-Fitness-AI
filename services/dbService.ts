@@ -4,11 +4,12 @@ import { UserProfile, WorkoutLog } from '../types';
 export const dbService = {
   // --- USER OPERATIONS ---
   createUserProfile: async (uid: string, data: UserProfile) => {
+    // Use set with merge true to avoid overwriting if it exists, or update timestamp
     await db.collection('users').doc(uid).set({
       ...data,
       uid,
       createdAt: new Date().toISOString()
-    });
+    }, { merge: true });
   },
 
   getUserProfile: async (uid: string): Promise<UserProfile | null> => {

@@ -3,46 +3,30 @@ import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
 import 'firebase/compat/storage';
 
-<<<<<<< HEAD
-// Define config with environment variables and fallbacks from your provided screenshot
-=======
-// Define config with environment variables and fallbacks
-// NOTE: storageBucket usually ends in .appspot.com for the default bucket
->>>>>>> 4ef6ee77a58245cea1641899b749cf14cae6c7ba
+// Define config strictly from environment variables.
+// NEVER hardcode API keys here.
 const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY || "AIzaSyAvadBNMDisnngwDp4TXB6rrvsfRfpHqZM",
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN || "global-fitness-ai-7d97d.firebaseapp.com",
-  projectId: process.env.FIREBASE_PROJECT_ID || "global-fitness-ai-7d97d",
-<<<<<<< HEAD
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "global-fitness-ai-7d97d.firebasestorage.app",
-=======
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "global-fitness-ai-7d97d.appspot.com",
->>>>>>> 4ef6ee77a58245cea1641899b749cf14cae6c7ba
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "821777817112",
-  appId: process.env.FIREBASE_APP_ID || "1:821777817112:web:26d7df3e8978608910ed6d"
+  apiKey: process.env.FIREBASE_API_KEY,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.FIREBASE_APP_ID
 };
-
-<<<<<<< HEAD
-// Log config to debug (excluding sensitive keys in production if needed, but helpful here)
-=======
-// Log config to debug (excluding sensitive keys)
->>>>>>> 4ef6ee77a58245cea1641899b749cf14cae6c7ba
-console.log('Firebase Config:', {
-    ...firebaseConfig,
-    apiKey: firebaseConfig.apiKey ? '***' : 'missing'
-});
 
 // Initialize Firebase
 if (!firebase.apps.length) {
-    if (firebaseConfig.apiKey && firebaseConfig.apiKey !== 'demo-key') {
+    // Check if critical keys are present
+    if (!firebaseConfig.apiKey || !firebaseConfig.authDomain) {
+        console.error("Firebase Configuration Missing. Please check your .env file.");
+        console.error("Ensure variables like VITE_FIREBASE_API_KEY are set in .env and exposed in vite.config.ts");
+    } else {
         try {
             firebase.initializeApp(firebaseConfig);
             console.log("Firebase initialized successfully");
         } catch (error) {
             console.error("Firebase initialization error:", error);
         }
-    } else {
-        console.error("Critical: Missing Firebase Configuration Keys. App will not function correctly.");
     }
 }
 
@@ -50,10 +34,6 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 
 // ENABLE OFFLINE PERSISTENCE
-<<<<<<< HEAD
-// This significantly improves load times for returning users by loading data from disk first.
-=======
->>>>>>> 4ef6ee77a58245cea1641899b749cf14cae6c7ba
 try {
   db.enablePersistence({ synchronizeTabs: true })
     .catch((err) => {
